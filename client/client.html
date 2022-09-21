@@ -8,6 +8,7 @@
 
     <!--стиль отображаемой страницы-->
     <style>
+	canvas { border:2px solid #333; }
     body {
         background-image: url(./background.jpg);
     }
@@ -20,10 +21,6 @@
         left: 50%;
         margin-right: -50%;
         transform: translate(-50%, -50%)
-    }
-    #main-table {
-        border: 1px solid black;
-
     }
     #board-cell {
         position: relative;
@@ -65,28 +62,8 @@
                 You play by: <span id="player"></span><br>
                 Info: <span id="info"></span> <!--блок для вывода статусной информации-->
             </td>
-            <td id="board-cell"> <!--вторая колонка (ячейка) - само игровое поле-->
-                <div>
-                    <table id="board">
-                        <tr>
-                            <td id="1" onclick="cellClick(1)">*</td>
-                            <td id="2" onclick="cellClick(2)">*</td>
-                            <td id="3" onclick="cellClick(3)">*</td>
-                        </tr>
-                        <tr>
-                            <td id="4" onclick="cellClick(4)">*</td>
-                            <td id="5" onclick="cellClick(5)">*</td>
-                            <td id="6" onclick="cellClick(6)">*</td>
-                        </tr>
-                        <tr>
-                            <td id="7" onclick="cellClick(7)">*</td>
-                            <td id="8" onclick="cellClick(8)">*</td>
-                            <td id="9" onclick="cellClick(9)">*</td>
-                        </tr>
-                    </table>
-                </div>
-            </td>
         </tr>
+		<canvas id="canvas"></canvas>
     </table>
 
     <!--блок js скрипта для обработки взаимодействия с полем-->
