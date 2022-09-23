@@ -1,3 +1,11 @@
+var ws = new WebSocket("ws://localhost:8000/ws"); //<!--создание объекта веб сокета (подключаемся к серверу ws://localhost:8000/ws, по протоколу websocet, а не html; localhost можно заменить на адрес сервера в интернете/локальной сети)-->
+
+let player = null // чем играет конкретный клиент (крестик или нолик), со старта - null
+let currentPlayer = null  // чей ход в данный момент
+
+let gameOver = false
+let game = null
+
 function getRandomBool() {
   if (Math.floor(Math.random() * 2) === 0) {
     return true;
@@ -18,6 +26,10 @@ function Game(context, cellSize){
   this.cellSize = cellSize;
 
   this.clicks = 0;
+}
+
+function setOnlineBoard(board) {
+	game.state = board
 }
 
 Game.prototype.getClicks = function() {
@@ -56,6 +68,9 @@ Game.prototype.draw = function() {
           i * this.cellSize + this.cellSize / 2
         );
       }
+	  else {
+	  
+	  }
     }
   }
 };
@@ -138,8 +153,8 @@ window.onload = function(){
 
   let cellSize = canvas.width / 4;
 
-  let game = new Game(context, cellSize);
-  game.mix(300);
+  game = new Game(context, cellSize);
+  // game.mix(300);
   game.draw();
 
   canvas.onclick = function(e) {
@@ -166,4 +181,39 @@ window.onload = function(){
       game.draw(context, cellSize);
     }
   }
+}
+
+
+ws.onmessage = function(e) { // определяем, что будет выполнятся при получении сокетом(сервером) информации - будет вызываться функция, что выполниться (на вход - событие e)
+    response = JSON.parse(e.data)  // парсим (преобразуем) полученные данные (.data) из ивента 'e' в json объект
+    console.log("On message",response); // для отладки выводим в консоль браузера полученные данные из ивента
+	if (response.init) { //проверка на то, что сообщение инициализирующее (передано поле init=True)
+        game.state = response.board
+		let context = canvas.getContext("2d");
+		context.fillRect(0, 0, canvas.width, canvas.height);
+		game.draw()
+		if (response.message != "Waiting for another player") {  // если сообщение в ответе отличается - значит, что подключился второй игрок и в зависимости отсокета, на который шла отправка - создаются записи о игроках
+			console.log("Добро пожаловать в Веб-консоль");
+        }
+		
+    } else {
+        if (response.message == 'move') { //если сервер ответил, что был сделан ход
+            updateCell(response.cell, response.player) //обновление ячейки (response.cell - номер ячейки, response.player - крестик или нолик)
+            toggleplayer() //переключение на другого игрока
+        } else if (response.message == 'draw') { //если сервер ответил, что ничья
+            updateInfo("It's a draw")  // выводим сообщение для пользователя, что ничья
+            updateCell(response.cell, response.player) // отображаем последний сделанный ход
+            highlightAll() // закрашиваем все ячейки, так как игра завершена ничьёй
+            ws.close(1000) // закрываем соединение с сервером с кодом 1000
+        } else if (response.message == 'won') { //если сервер ответил, что кто-то победил
+            updateInfo("Player " + response.player + " won!") // выводим сообщение, какой пользователь победил
+            updateCell(response.cell, response.player) // отображаем последний сделанный ход
+            hightLightRow() // подсвечиваем выигрышную комбинацию
+            ws.close(1000) // закрываем соединение с сервером с кодом 1000
+        } else if (response.player == player & response.message == 'choose another one') { //сообщение об ошибке
+            updateInfo("Cell is not available") // выводим сообщение, что ячейка недоступна для хода
+        } else { // дефолтовый варинт, если ничего не сработало
+            console.log(response);
+        }
+    }
 }
