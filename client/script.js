@@ -1,10 +1,10 @@
 var ws = new WebSocket("ws://localhost:8000/ws"); //<!--создание объекта веб сокета (подключаемся к серверу ws://localhost:8000/ws, по протоколу websocet, а не html; localhost можно заменить на адрес сервера в интернете/локальной сети)-->
 
-let player = null // чем играет конкретный клиент (крестик или нолик), со старта - null
+let player_id = null // Нужно будет переедать id игрока при инициализирующем подключении
 let currentPlayer = null  // чей ход в данный момент
 
 let gameOver = false
-let game = null
+let gameLoaded = false
 
 function getRandomBool() {
   if (Math.floor(Math.random() * 2) === 0) {
@@ -157,10 +157,14 @@ window.onload = function(){
   // game.mix(300);
   game.draw();
 
+  gameLoaded = true;
+
   canvas.onclick = function(e) {
     let x = (e.pageX - canvas.offsetLeft) / cellSize | 0;
     let y = (e.pageY - canvas.offsetTop)  / cellSize | 0;
-    onEvent(x, y); 
+    onEvent(x, y);
+    console.log("Была нажатаячейка:" + x, y)
+    ws.send(JSON.stringify({player: 1, cell_x: x, cell_y: y }));
   };
 
   canvas.ontouchend = function(e) {
