@@ -2,6 +2,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from typing import List
 import json
 import random
+import js2py
 
 app = FastAPI()
 
@@ -13,29 +14,38 @@ def init_board():  # создание пустой доски
                  9,10,11,12,
                  13,14,15,0]
             
-    shape = 4
-            
-    random.shuffle(new_board)
+        
+
+    code_for_board_init = ""
+
+    with open("initBoardScript.txt",'r',encoding = 'utf-8') as f:
+        code_for_board_init = f.read()
     
-    def reshape(lst1, lst2):
-        last = 0
-        res = []
-        for ele in lst1:
-            res.append(lst2[last : last + len(ele)])
-            last += len(ele)
+    new_board_func = js2py.eval_js(code_for_board_init)
+
+    # random.shuffle(new_board)
     
-        print("res::", res)
+    # def reshape(lst1, lst2):
+    #     last = 0
+    #     res = []
+    #     for ele in lst1:
+    #         res.append(lst2[last : last + len(ele)])
+    #         last += len(ele)
+    
+    #     print("res::", res)
            
-        return res
+    #     return res
     
-    new_board = reshape([
-    [0,1,2,3],
-    [0,1,2,3],
-    [0,1,2,3],
-    [0,1,2,3]
-    ], new_board)
+    # new_board = reshape([
+    # [0,1,2,3],
+    # [0,1,2,3],
+    # [0,1,2,3],
+    # [0,1,2,3]
+    # ], new_board)
     
-    
+    new_board = new_board_func().to_list()
+
+    print(type(new_board), new_board)
     
     return new_board
 
