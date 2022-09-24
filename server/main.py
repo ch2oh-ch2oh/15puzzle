@@ -47,6 +47,16 @@ async def update_board(manager, data): # функция обновления д�
 
     print("new_board::", board)
 
+    ws_to_send = None
+
+    if data['player'] == 1:
+        ws_to_send = manager.connections[0]
+    else:
+        ws_to_send = manager.connections[1]
+
+
+    await ws_to_send.send_json({ 'message': 'move', 'x': x, 'y': y })
+
 
 class ConnectionManager: #--создание класса для обработки множественных подключений
     def __init__(self): #при создании объекта класса (без вызова конструкторов

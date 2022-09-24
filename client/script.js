@@ -1,7 +1,7 @@
 var ws = new WebSocket("ws://localhost:8000/ws"); //<!--создание объекта веб сокета (подключаемся к серверу ws://localhost:8000/ws, по протоколу websocet, а не html; localhost можно заменить на адрес сервера в интернете/локальной сети)-->
 
 let player_id = null // Нужно будет переедать id игрока при инициализирующем подключении
-let currentPlayer = null  // чей ход в данный момент
+let abilityToMove = false  // чей ход в данный момент
 
 let gameOver = false
 let gameLoaded = false
@@ -160,11 +160,16 @@ window.onload = function(){
   gameLoaded = true;
 
   canvas.onclick = function(e) {
+    if (!abilityToMove)
+    {
+      return;
+    }
     let x = (e.pageX - canvas.offsetLeft) / cellSize | 0;
     let y = (e.pageY - canvas.offsetTop)  / cellSize | 0;
     onEvent(x, y);
-    console.log("Была нажатаячейка:" + x, y)
-    ws.send(JSON.stringify({player: 1, cell_x: x, cell_y: y }));
+    console.log("Была нажатаячейка:" + x, y, 'Игрок:' + player_id)
+    ws.send(JSON.stringify({player: player_id, cell_x: x, cell_y: y }));
+    abilityToMove = false;
   };
 
   canvas.ontouchend = function(e) {
@@ -187,23 +192,46 @@ window.onload = function(){
   }
 }
 
+function repaintAfterMove(x, y)
+{
+  game.move(x, y);
+  let context = canvas.getContext("2d");
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  game.draw()
+}
 
 ws.onmessage = function(e) { // определяем, что будет выполнятся при получении сокетом(сервером) информации - будет вызываться функция, что выполниться (на вход - событие e)
     response = JSON.parse(e.data)  // парсим (преобразуем) полученные данные (.data) из ивента 'e' в json объект
     console.log("On message",response); // для отладки выводим в консоль браузера полученные данные из ивента
 	if (response.init) { //проверка на то, что сообщение инициализирующее (передано поле init=True)
-        game.state = response.board
+    game.state = response.board
 		let context = canvas.getContext("2d");
-		context.fillRect(0, 0, canvas.width, canvas.height);
-		game.draw()
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    game.draw()
+
+    cur_player_id = document.getElementById("current-player");
+
 		if (response.message != "Waiting for another player") {  // если сообщение в ответе отличается - значит, что подключился второй игрок и в зависимости отсокета, на который шла отправка - создаются записи о игроках
 			console.log("Добро пожаловать в Веб-консоль");
-        }
+      cur_player_id.innerHTML = '1'
+      player_id = 1
+      abilityToMove = false
+    }
+    else
+    {
+      cur_player_id.innerHTML = '2'
+      player_id = 2
+      abilityToMove = true
+    }
 		
     } else {
+        console.log(response)
         if (response.message == 'move') { //если сервер ответил, что был сделан ход
-            updateCell(response.cell, response.player) //обновление ячейки (response.cell - номер ячейки, response.player - крестик или нолик)
-            toggleplayer() //переключение на другого игрока
+            // updateCell(response.cell, response.player) //обновление ячейки (response.cell - номер ячейки, response.player - крестик или нолик)
+            console.log('another player move::', response.x, response.y)
+            repaintAfterMove(response.x, response.y)
+            abilityToMove = true
+            // toggleplayer() //переключение на другого игрока
         } else if (response.message == 'draw') { //если сервер ответил, что ничья
             updateInfo("It's a draw")  // выводим сообщение для пользователя, что ничья
             updateCell(response.cell, response.player) // отображаем последний сделанный ход
@@ -214,7 +242,7 @@ ws.onmessage = function(e) { // определяем, что будет выпо
             updateCell(response.cell, response.player) // отображаем последний сделанный ход
             hightLightRow() // подсвечиваем выигрышную комбинацию
             ws.close(1000) // закрываем соединение с сервером с кодом 1000
-        } else if (response.player == player & response.message == 'choose another one') { //сообщение об ошибке
+        } else if (response.player == player_id & response.message == 'choose another one') { //сообщение об ошибке
             updateInfo("Cell is not available") // выводим сообщение, что ячейка недоступна для хода
         } else { // дефолтовый варинт, если ничего не сработало
             console.log(response);
