@@ -1,61 +1,59 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from typing import List
 import json
-import random
 import js2py
+
+import time
 
 app = FastAPI()
 
-board_shape = 4
+board_shape = 4 # размер доски
 
-#js-code for board initializing
-code_for_board_init = ""
-with open("initBoardScript.txt",'r',encoding = 'utf-8') as f:
-    code_for_board_init = f.read()
-new_board_func = js2py.eval_js(code_for_board_init)
+board = [ # начальное (и отслеживаемое) состояние доски
+        [[1, 2, 3, 4],
+        [5, 6, 7, 8],
+        [9, 10, 11, 12],
+        [13, 14, 15, 0]],
 
+        [[1, 2, 3, 4],
+        [5, 6, 7, 8],
+        [9, 10, 11, 12],
+        [13, 14, 15, 0]]
+        ]
 
-def init_board(): 
-    
-    new_board = new_board_func().to_list()
-
-    # print(type(new_board), new_board)
-    
-    return new_board
-
-board = init_board()  # создание нового игрового поля (сохраняем в переменной board список из 9 None)
+whose_move = 0
+null_cell = [3,3] # начальные координаты "незакрашенной" точки\
+clicked_cell = None
+clicks = 0
+completion = [0,0] # на сколько завершены доски у игроков
+players_id_in_game = [0,0,0] # массив флагов под кодключившихся пользователей (0 - игрок 0, 1 - игрок1, 2 - host)
 
 
 async def update_board(manager, data): # функция обновления доски, асинхронная - так как FastAPI асинхронный framework
-    print("board::", board, data['cell_x'], data['cell_y'])
+    global board, whose_move, null_cell, clicks, completion
+    board = data["board"]
+    null_cell = data["null_cell"]
 
-    nullCell = {}
+    if data["state"] in ["moved", "victory"]:
+        player_id = data["player_id"]
+        clicked_cell = data['clicked_cell']
+        whose_move = int(not data["whose_move"])
+        clicks = data["clicks"]
+        completion = data["completion"]
+        print("player_id:", player_id, "board after click:", board, "X:", clicked_cell[0], "Y:", clicked_cell[1], " X_null: ", null_cell["x"] ," Y_null: ",null_cell["y"]) # вывод текущего состояния доски и координат элемента, который хотим сменить
 
-    x, y = data['cell_x'], data['cell_y']
-
-    for i in range(board_shape):
-        for j in range(board_shape):
-            if board[j][i] == 0:
-                nullCell = {'x': i, 'y': j}
-       
-    canMoveVertical = (x - 1 == nullCell['x'] or x + 1 == nullCell['x']) and y == nullCell['y']
-    canMoveHorizontal = (y - 1 == nullCell['y'] or y + 1 == nullCell['y']) and x == nullCell['x']    
-
-    if canMoveVertical or canMoveHorizontal:
-        board[nullCell['y']][nullCell['x']] = board[y][x]
-        board[y][x] = 0
-
-    print("new_board::", board)
-
-    ws_to_send = None
-
-    if data['player'] == 1:
-        ws_to_send = manager.connections[0]
-    else:
-        ws_to_send = manager.connections[1]
-
-
-    await ws_to_send.send_json({ 'message': 'move', 'x': x, 'y': y })
+        await manager.broadcast({ # даём данные для обновления доски
+                    'state': "Update view",
+                    'board': board,
+                    'whose_move': whose_move,
+                    'message': f'Player {whose_move} turn!',
+                    'clicked_cell': clicked_cell,
+                    'clicks' : clicks,
+                    'completion': completion,
+                    'player_id': player_id,
+                    'null_cell': null_cell,
+                })
+    
 
 
 class ConnectionManager: #--создание класса для обработки множественных подключений
@@ -63,44 +61,97 @@ class ConnectionManager: #--создание класса для обработ�
         self.connections: List[WebSocket] = [] #создаётся список активных соединений, со старта - он пустой
 
     async def connect(self, websocket: WebSocket): # метод, определяющий то, как обрабатывать соединение
-        print(len(self.connections))
-        if len(self.connections) >= 2:  # проверка на число активных соединений
+        print( "Number of connections: " + str(len(self.connections)) + ", trying to connect...")
+        if len(self.connections) >= 3:  # проверка на число активных соединений
             await websocket.accept()  # принимаем соединение
             await websocket.close(4000)  # и сразу закрываем соединение с кодом 4000
         else:
             await websocket.accept()  # принимаем соединение
-            # adding the connections to the connection's list
             self.connections.append(websocket)  # при новом соединении - добавляем его в список активных соединений
-            if len(self.connections) == 1:  # проверяем число активных соединений
-                # первый подключившийся игрок играет за "крестик" и должен подождать второго игрока
-                await websocket.send_json({ # отправляем ответ первому игроку - джейсоновский объект
-                    'init': True,  # это инициализационное сообщение (созданное нами значение init, если True - то мы как бы говорим, что это не относится к ходам/изменению поля)
-                    'board': board,  # игрок играет крестиками
-                    'message': 'Waiting for another player',  # дополнительное сообщение - жди подключения второго игрока
+            time.sleep(1) # для синхронизации подключений...
+            if len(self.connections) == 1 and players_id_in_game[2] == 0:  # проверяем число активных соединений (для пользователя-хоста (id -1))
+                players_id_in_game[2] = 1 # ставим флаг хоста, что он присоединился
+                await self.broadcast({
+                    'state': "Host joined",
+                    'board': board,
+                    'whose_move': whose_move,
+                    'message': 'Waiting for players!',
+                    'clicked_cell': None,
+                    'clicks' : clicks,
+                    'completion': completion, # на сколько завершены доски у игроков
+                    'player_id': -1,
+                    'null_cell': null_cell,
                 })
-            else:
-                # иначе - подключается второй игрок за "нолики"
-                await websocket.send_json({  # отправляем ответ второму игроку - джейсоновский объект
-                    'init': True,  # это инициализационное сообщение
-                    'board': board,  # игрок играет ноликами
-                    'message': 'Game begins!',
+            elif len(self.connections) == 2 and players_id_in_game[0] == 0: # подключился первый игрок (id 0)
+                players_id_in_game[0] = 1
+                await self.broadcast({ # отправляем ответ всем присоединившимся игрокам - джейсоновский объект
+                    'state': "Player 0 joined",
+                    'board': board,
+                    'whose_move': whose_move,
+                    'message': 'Waiting for player 1!',  # дополнительное сообщение - жди подключения второго игрока
+                    'clicked_cell': None,
+                    'clicks' : clicks,
+                    'completion': completion,
+                    'player_id': 0,
+                    'null_cell': null_cell,
                 })
-                # отправляем сигнал первому игроку, что второй игрок присоединился
-                await self.connections[0].send_json({
-                    'init': False,  # это инициализационное сообщение (не изменяет игровое поле)
-                    'board': [],
-                    'message': 'Your turn!',  # сообщение, что твой ход
+            else: # иначе - подключился второй игрок (id 1)
+                # смотрим, какой пользователь присоединился (на случай, если кто-то выходил)
+                who_joined = None 
+                for player_id in [0,1]: # поддержка переподключения игроков
+                    if players_id_in_game[player_id] == 0:
+                        players_id_in_game[player_id] = 1
+                        who_joined = player_id
+                        break
+                print("who joined: ", who_joined)
+                await self.broadcast({
+                    'state': "Everyone joined",
+                    'board': board, # начальное состояние доски состояние доски,
+                    'whose_move': whose_move, # продолжаем игру (первый ход игрока с id 0)
+                    'message': 'Everything is in place!',
+                    'clicked_cell': None,
+                    'clicks' : clicks,
+                    'completion': completion,
+                    'player_id': who_joined,
+                    'null_cell': null_cell, # координаты "незаполненной" клетки
                 })
 
-    def disconnect(self, websocket: WebSocket):  # метод, при дисконекте - удаляющий сокет из списка активных соединений
-        self.connections.remove(websocket)
+    async def disconnect(self, websocket: WebSocket):  # метод, при дисконекте - удаляющий сокет из списка активных соединений
+        global players_id_in_game
+        player_left = self.connections.index(websocket) - 1 # -1 из-за смещения, так как в manager.connections host идёт под первым индексом
+        if player_left < 0: # вышел host
+            players_id_in_game = [0,0,0]
+            for websock in self.connections:
+                # await websock.close(-1)
+                self.connections.remove(websock)
+            print("Host left the game!")
+            print("Number of connections: " + str(len(self.connections)))
 
-    async def send_personal_message(self, message: str, websocket: WebSocket):
-        await websocket.send_text(message)
+        else: # вышел не host - сохраняем текущие данные
+            # await websocket.close(-1)
+            self.connections.remove(websocket)
+            players_id_in_game[player_left] = 0
+            print("Number of connections: " + str(len(self.connections)))
+            print(f'Player {player_left} disconnected')
+            await self.broadcast({
+                'state': f'Player {player_left} disconected',
+                'board': board, # сохраняем текущее состояние доски
+                'whose_move': whose_move,
+                'message': f'Player {player_left} left the game!',
+                'clicked_cell': None,
+                'clicks' : clicks,
+                'completion': completion,
+                'player_id': player_left,
+                'null_cell': null_cell,
+                })
 
-    async def broadcast(self, data: str): #метод, как отсылать данные (формата json) всем подключённым соединениям
+    # async def send_personal_message(self, message: str, websocket: WebSocket):
+    #     await websocket.send_text(message)
+
+    async def broadcast(self, data): #метод, как отсылать данные (формата json) всем подключённым соединениям
         for connection in self.connections:
             await connection.send_json(data)
+
 
 
 manager = ConnectionManager()  # создание объекта менеджера подключений для отслеживания активных соединений
@@ -111,11 +162,12 @@ async def websocket_endpoint(websocket: WebSocket):  # асинхронная ф
 #    await websocket.accept()  # принимает connection (запрос от браузера, см консоль в браузере при попытке обновления без этой функции 'WebSocket connection to 'ws://localhost:8000/ws' failed:')
     try:  # после того, как соединились - пытаемся ожидать сообщение от клиента
         while True:
-            data = await websocket.receive_text()  # ожидает получения текста со стороны клиента
+            data = await websocket.receive_text()  # ожидает получения данных со стороны клиента
+            print("From JS: " + data)
 #            await websocket.send_text(f"Message text was: {data}")  # как только дожидается входящего сообщения - отправляет его обратно с дописанием "Message text was:"
             data = json.loads(data)  # конвертируем полученный текст в словарь
             await update_board(manager, data)  # асинхронное обновление доски с аргументами manager - для доступа к списку соединений, data - сами данные для обновления
     except WebSocketDisconnect:  # если получаем сообщение об ошибке - websocket разъединён (из-за допустимого числа игроков)
-        manager.disconnect(websocket)  # удаляем объект из списка активных подключений
+        await manager.disconnect(websocket)  # удаляем объект из списка активных подключений
     except:  # для всех остальных ошибок - просто пропускаем
         pass
