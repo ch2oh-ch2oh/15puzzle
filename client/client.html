@@ -11,16 +11,7 @@
     body {
         background-image: url(./background.jpg);
     }
-    div {
-        padding: 10px;
-        border: 1px solid black;
-        background-color: white;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        margin-right: -50%;
-        transform: translate(-50%, -50%)
-    }
+
     #board-cell {
         position: relative;
         width: 50%;
@@ -65,10 +56,11 @@
         </tr>
 		<canvas id="canvas"></canvas>
     </table>
-
+    <div id="chartContainer" style="height: 300px; width: 600px; position: absolute; top: 40px; left: 20px;"></div>
     <!--блок js скрипта для обработки взаимодействия с полем-->
     <script src = "script.js">
 
-    </script>
+    </script>   
 </body>
+<script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
 </html>
