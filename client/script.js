@@ -53,6 +53,42 @@ class Game {
     this.cellSize = cellSize; // размер клетки поля
     this.clicks = 0; // начальное число ходов
     this.null_cell = null; // перезапишется, при создании объекта класса
+
+    this.chart = new CanvasJS.Chart("chartContainer", {
+      animationEnabled: true,
+      title:{
+        text: "Точность"
+      },
+      axisX: {
+        title: "Ход",
+        minimum: 0
+      },
+      axisY: {
+        title: "Точность",
+        suffix: "%",
+        maximum: 100
+      },
+      toolTip:{
+        shared: true
+      },
+      data: [{
+        name: "Player id 0",
+        type: "spline",
+        showInLegend: true,
+        dataPoints: [
+          { x: this.clicks, y: this.check_board_quality(this.state) }
+        ]
+      },
+      {
+        name: "Player id 1",
+        type: "spline",
+        showInLegend: true,
+        dataPoints: [
+          { x: this.clicks, y: this.check_board_quality(this.state) }
+        ]
+      }]
+    });
+    this.chart.render();
   }
 
 
@@ -83,10 +119,15 @@ class Game {
   draw() {
     // console.log(player_id)
     // console.log(this.state[player_id])
+    if(player_id == -1) {
+      document.getElementById("canvas").style.visibility='hidden';
+      this.add_point();
+      return;
+    }
     if (player_id != 0 && player_id != 1){ // нет вывода, если у пользователя нет id 0 или 1
       return;
     }
-
+    document.getElementById("chartContainer").style.visibility='hidden';
     for (let i = 0; i < 4; i++) { // i - число строк
       for (let j = 0; j < 4; j++) { // j - число столбцов
         if (this.state[player_id][i][j] > 0) { // проверка, что ячейка не пустая (не та, которая "незаполнена")
@@ -136,6 +177,23 @@ class Game {
     return false;
   }
 
+  check_board_quality(){
+    let combination = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 0]]; // победная комбинация
+    let quality = [0, 0];
+    for (let player = 0; player < 2; player++) {
+      for (let i = 0; i < 4; i++) { // проходим по всему полю
+        for (let j = 0; j < 4; j++) {
+          if (combination[i][j] == this.state[player][i][j]){
+            quality[player] ++;
+          }
+        }
+      }
+      quality[player] /= 15;
+      quality[player] *= 100;
+    }
+    
+    return quality;
+  }
 
   victory() { // проверка на победу 
     let combination = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 0]]; // победная комбинация
@@ -186,6 +244,14 @@ class Game {
     }
 
     this.clicks = 0; // число ходов = 0 (перезапись из-за изменения после вызова mix)
+  }
+
+  add_point(){
+    let quality = this.check_board_quality(this.state);
+    for (let player = 0; player < 2; player++) {
+      this.chart.data[player].addTo('dataPoints',  { x: this.clicks, y: quality[player] });
+    }
+    this.chart.render();
   }
 }
 
@@ -293,7 +359,6 @@ window.onload = function(){ // как будет грузится окно
     if (game.move(x, y)) { // делаем move, если он возможен - отправляем новые данные на сервер
       game.draw();
       console.log('Игрок: ' + player_id + " нажал ячейку: " + x, y); // вывод лога об этом
-
       ws.send(JSON.stringify({
         'state': "moved",
         'board': game.state,
