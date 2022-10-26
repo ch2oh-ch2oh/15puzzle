@@ -188,7 +188,7 @@ class Game {
           }
         }
       }
-      quality[player] /= 15;
+      quality[player] /= 16;
       quality[player] *= 100;
     }
     
