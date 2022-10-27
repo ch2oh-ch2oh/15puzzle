@@ -102,7 +102,7 @@ class ConnectionManager: #--создание класса для обработ�
                     'state': "Everyone joined",
                     'board': board, # начальное состояние доски состояние доски,
                     'whose_move': whose_move, # продолжаем игру (первый ход игрока с id 0)
-                    'message': 'Everything is in place!',
+                    'message': f'Everything is in place! Player {whose_move} turn.',
                     'clicked_cell': None,
                     'clicks' : clicks,
                     'player_id': who_joined,
