@@ -1,7 +1,7 @@
 var config = { // конфиг, который в идеале заполнеет host при открытии его страницы
   randomState: 5, 
   mix_count: 300, 
-  server_id: "127.0.0.1",
+  server_id: "78.40.188.79",
   port: "8000",
 }
 
