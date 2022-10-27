@@ -24,12 +24,11 @@ whose_move = 0
 null_cell = [3,3] # начальные координаты "незакрашенной" точки\
 clicked_cell = None
 clicks = 0
-completion = [0,0] # на сколько завершены доски у игроков
 players_id_in_game = [0,0,0] # массив флагов под кодключившихся пользователей (0 - игрок 0, 1 - игрок1, 2 - host)
 
 
 async def update_board(manager, data): # функция обновления доски, асинхронная - так как FastAPI асинхронный framework
-    global board, whose_move, null_cell, clicks, completion
+    global board, whose_move, null_cell, clicks
     board = data["board"]
     null_cell = data["null_cell"]
 
@@ -38,7 +37,6 @@ async def update_board(manager, data): # функция обновления д�
         clicked_cell = data['clicked_cell']
         whose_move = int(not data["whose_move"])
         clicks = data["clicks"]
-        completion = data["completion"]
         print("player_id:", player_id, "board after click:", board, "X:", clicked_cell[0], "Y:", clicked_cell[1], " X_null: ", null_cell["x"] ," Y_null: ",null_cell["y"]) # вывод текущего состояния доски и координат элемента, который хотим сменить
 
         await manager.broadcast({ # даём данные для обновления доски
@@ -48,7 +46,6 @@ async def update_board(manager, data): # функция обновления д�
                     'message': f'Player {whose_move} turn!',
                     'clicked_cell': clicked_cell,
                     'clicks' : clicks,
-                    'completion': completion,
                     'player_id': player_id,
                     'null_cell': null_cell,
                 })
@@ -77,7 +74,6 @@ class ConnectionManager: #--создание класса для обработ�
                     'message': 'Waiting for players!',
                     'clicked_cell': None,
                     'clicks' : clicks,
-                    'completion': completion, # на сколько завершены доски у игроков
                     'player_id': -1,
                     'null_cell': null_cell,
                 })
@@ -90,7 +86,6 @@ class ConnectionManager: #--создание класса для обработ�
                     'message': 'Waiting for player 1!',  # дополнительное сообщение - жди подключения второго игрока
                     'clicked_cell': None,
                     'clicks' : clicks,
-                    'completion': completion,
                     'player_id': 0,
                     'null_cell': null_cell,
                 })
@@ -110,7 +105,6 @@ class ConnectionManager: #--создание класса для обработ�
                     'message': 'Everything is in place!',
                     'clicked_cell': None,
                     'clicks' : clicks,
-                    'completion': completion,
                     'player_id': who_joined,
                     'null_cell': null_cell, # координаты "незаполненной" клетки
                 })
@@ -139,13 +133,9 @@ class ConnectionManager: #--создание класса для обработ�
                 'message': f'Player {player_left} left the game!',
                 'clicked_cell': None,
                 'clicks' : clicks,
-                'completion': completion,
                 'player_id': player_left,
                 'null_cell': null_cell,
                 })
-
-    # async def send_personal_message(self, message: str, websocket: WebSocket):
-    #     await websocket.send_text(message)
 
     async def broadcast(self, data): #метод, как отсылать данные (формата json) всем подключённым соединениям
         for connection in self.connections:
@@ -163,7 +153,6 @@ async def websocket_endpoint(websocket: WebSocket):  # асинхронная ф
         while True:
             data = await websocket.receive_text()  # ожидает получения данных со стороны клиента
             print("From JS: " + data)
-#            await websocket.send_text(f"Message text was: {data}")  # как только дожидается входящего сообщения - отправляет его обратно с дописанием "Message text was:"
             data = json.loads(data)  # конвертируем полученный текст в словарь
             await update_board(manager, data)  # асинхронное обновление доски с аргументами manager - для доступа к списку соединений, data - сами данные для обновления
     except WebSocketDisconnect:  # если получаем сообщение об ошибке - websocket разъединён (из-за допустимого числа игроков)

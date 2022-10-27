@@ -1,18 +1,17 @@
-var config = { // конфиг, который в идеале заполнеет host при открытии его страницы
-  randomState: 5, 
-  mix_count: 300, 
-  server_id: "127.0.0.1",
-  port: "8000",
+var config = { // конфиг, используемый при работе приложения
+  randomState: 5, // число различий меду досками игроков
+  mix_count: 300, // на сколько будут случайно перемешаны доски игрков
+  server_id: "127.0.0.1", // id сервера, к которому будет подключение
+  port: "8000", // порт подключения
 }
 
-let player_id = null // Нужно будет переедать id игрока при инициализирующем подключении (0 или 1)
+let player_id = null // id для игрока (зависит от порядка открытия вкладок client, -1 это host; 0,1 - игрок 0 и 1 соответственно)
 let whose_move = null  // чей ход в данный момент (игрок 0 или игрок 1)
 let game = null
-let completion = [0,0] // временная заглушка для подсчёта числа правильно поставленных элементов
 
 var ws = new WebSocket("ws://" + config.server_id + ":" + config.port + "/ws"); //<!--создание объекта веб сокета (подключаемся к серверу ws://localhost:8000/ws, по протоколу websocet, а не html; localhost можно заменить на адрес сервера в интернете/локальной сети)-->
 
-function getRandomBool() { // возвращает True или undefined
+function getRandomBool() { // возвращает true или false
   res = (Math.floor(Math.random() * 2) === 0); // проверка на то, что сгенерированное число (из равномерного распределения от 0 до 1) меньше 0.5
   return res;
 }
@@ -33,7 +32,7 @@ class Game {
     ];
 
     this.randomState = randomState;
-    if (this.randomState > 1) { // randomState - в скольких элементах различаются доски игроков
+    if (this.randomState > 1) { // randomState - в скольких элементах различаются доски игроков (если он больше 1, то меняем клетки)
       let cell_to_change = [];
       let possible_cells_to_change = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14];
       for (let i = 0; i < Math.min(randomState, 15); i++) { // randomState < 15, так как "незаполненную" клетку нельзя переставлять
@@ -52,9 +51,9 @@ class Game {
     this.context = context; // CanvasRenderingContext2D
     this.cellSize = cellSize; // размер клетки поля
     this.clicks = 0; // начальное число ходов
-    this.null_cell = null; // перезапишется, при создании объекта класса
+    this.null_cell = null; // значение "незаполненной" клетки
 
-    this.chart = new CanvasJS.Chart("chartContainer", {
+    this.chart = new CanvasJS.Chart("chartContainer", { // график
       animationEnabled: true,
       title:{
         text: "Точность"
@@ -116,10 +115,8 @@ class Game {
   }
 
 
-  draw() {
-    // console.log(player_id)
-    // console.log(this.state[player_id])
-    if(player_id == -1) {
+  draw() { // отрисовка досок
+    if(player_id == -1) { // для хоста (id = -1) не рисуем
       document.getElementById("canvas").style.visibility='hidden';
       this.add_point();
       return;
@@ -177,7 +174,7 @@ class Game {
     return false;
   }
 
-  check_board_quality(){
+  check_board_quality(){ // функция, нужная при заполнения графика
     let combination = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 0]]; // победная комбинация
     let quality = [0, 0];
     for (let player = 0; player < 2; player++) {
@@ -255,15 +252,7 @@ class Game {
   }
 }
 
-
-
-// function setOnlineBoard(board) {
-// 	Game.state = board // выстановка state для игры по значению переданного поля
-// }
-
-
-
-window.onload = function(){ // как будет грузится окно
+window.onload = function(){ // функция, выполняемая при открытии окна
   let canvas = document.getElementById("canvas"); // получение элемента html страницы по ID "canvas"
   canvas.width  = 0.25 * window.screen.width; // отражающий HTML-атрибут ширины элемента <canvas>, интерпретируемый в пикселях CSS
   canvas.height = 0.25 * window.screen.width; // отражающий HTML-атрибут высоты элемента <canvas>, интерпретируемый в пикселях CSS
@@ -296,7 +285,6 @@ window.onload = function(){ // как будет грузится окно
         'message': 'Board creation complete',
         'clicked_cell': response['clicked_cell'],
         'clicks' : game.clicks,
-        'completion': response['completion'],
         'player_id': response['player_id'],
         'null_cell': game.null_cell,
       }));
@@ -331,9 +319,8 @@ window.onload = function(){ // как будет грузится окно
         'board': game.state,
         'whose_move': whose_move,
         'message': 'Player ' + player_id + ' won the game',
-        'clicked_cell': [x, y], // так как это не индексы, а отступы от границ (всё наоборот)
+        'clicked_cell': [x, y], // так как это не индексы, а отступы от границ
         'clicks' : game.clicks,
-        'completion': completion,
         'player_id': player_id,
         'null_cell': Null,
       }));
@@ -366,7 +353,6 @@ window.onload = function(){ // как будет грузится окно
         'message': 'Player ' + player_id + ' clicked cell ' + x + " " + y,
         'clicked_cell': [x, y], // так как это не индексы, а отступы от границ (всё наоборот)
         'clicks' : game.clicks,
-        'completion': completion,
         'player_id': player_id,
         'null_cell': Null,
       }));
@@ -374,8 +360,7 @@ window.onload = function(){ // как будет грузится окно
   };
 }
 
-function repaintAfterMove(x, y)
-{
+function repaintAfterMove(x, y) { // обновление досок
   game.move(x, y); // делаем move клетки (x,y) с "незаполненной" клеткой рядом
   let context = canvas.getContext("2d"); // берём контекст
   context.fillRect(0, 0, canvas.width, canvas.height); // метод Canvas 2D API рисует прямоугольник, по координатам x=0, y=0, шириной=canvas.width, высотой=canvas.height (пересоздаём поле)
