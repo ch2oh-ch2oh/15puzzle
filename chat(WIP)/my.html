@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html >
+  <head>
+    <meta charset="utf-8">
+    <title>
+         Работа с сокетами на python
+    </title>
+  </head>
+  <body>
+    <div class="message"></div>
+  <textarea placeholder="Для отправки нажмите Enter"></textarea>
+  <script>
+  var socket = new WebSocket("ws://localhost:5678");
+  socket.onopen = function(){
+
+    document.querySelector("textarea").addEventListener('keyup', function(e){
+      if(e.keyCode === 13){
+        if(this.value.trim() === ""){
+          return false;
+        }
+        socket.send(this.value.trim());
+        this.value = "";
+      }
+
+    });
+
+  };
+  socket.onerror = function(){
+    console.log('Ошибка при подключении');
+  };
+
+var p = "";
+  socket.onmessage = function(e){
+    p = document.createElement("p");
+    p.innerHTML = e.data;
+    document.querySelector(".message").appendChild(p);
+  };
+  </script>
+</html>
