@@ -1,7 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from typing import List
 import json
-import js2py
 
 import time
 
